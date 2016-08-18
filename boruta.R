@@ -1,6 +1,10 @@
 
 library(Boruta)
+library(ggplot2)
 
+threes <- read.csv('/volumes/nba/threes.csv')
+
+feats <- read.csv('event_features_7-17-16.csv')
 
 df <- threes %>% 
      left_join(feats, 
@@ -25,5 +29,10 @@ B <- Boruta(as.factor(EVENTMSGTYPE) ~ .,
             doTrace = 2,
             num.threads = 4 )
 
-par(mar = c(9, 3, 1, 1))
+par(mar = c(11.5, 3, 1, 1))
 plot(B, las = 2, xlab = '')
+
+# normalize ?
+# boxcox ?
+
+#

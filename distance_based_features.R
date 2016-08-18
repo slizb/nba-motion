@@ -16,6 +16,7 @@ get_dist_features <- function(data,
      pbp <- read.csv(pbp_path)
      
      ball_matchup <- NULL
+     team_feats <- NULL
      
      for (event in unique(data$event.id)) {
           
@@ -114,6 +115,10 @@ get_dist_features <- function(data,
                mutate(event.id = event) %>% 
                bind_rows(ball_matchup)
           
+          team_feats <- data.frame(event.id = event, 
+                                   stagnation = stagnation(event_df, o_team)) %>% 
+               bind_rows(team_feats)
+          
      }
      
      # derive sub-event id --------------------------------------------
@@ -143,10 +148,10 @@ get_dist_features <- function(data,
                     onBallExperienceMismatch = onBallexperienceMismatch[which.max(subEventID)],
                     onBallPositionMatchup = onBallpositionMatchup[which.max(subEventID)])
      
+     dist_features <- dist_features %>% 
+          left_join(team_feats, by = 'event.id')
+     
      return(dist_features)
      
 }
 
-
-
-# next, functionize this script

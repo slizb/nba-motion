@@ -10,7 +10,7 @@ chull_area <- function(X,Y) {
      #You need five points to draw four line segments, so we add the first set of points at the end
      c.hull <- c(c.hull, c.hull[1])
      chull.coords <- df_hull[c.hull ,]
-     chull.poly <- Polygon(chull.coords, hole=F)
+     chull.poly <- Polygon(chull.coords, hole = F)
      chull.area <- chull.poly@area
      return (chull.area)
      
@@ -24,6 +24,25 @@ dist_traveled <- function(xloc, yloc) {
      dy <- diff(yloc) %>% abs()
      sqrt(dx^2 + dy^2) %>%  sum()
 
+}
+
+stagnation <- function(event_data, o_team) {
+     
+     elapsed_time <- event_data$game_clock %>% 
+          { max(.) - min(.) }
+     
+     o_team_short <- substr(o_team, 9, 10) %>% 
+          as.numeric()
+     
+     team_distance <- event_data %>% 
+          filter(team_id == o_team_short) %>% 
+          group_by(player_id) %>% 
+          summarize(dist_traveled = dist_traveled(x_loc, y_loc)) %>% 
+          .$dist_traveled %>% 
+          sum()
+     
+     team_distance / elapsed_time
+     
 }
 
 ax_dist <- function(loc) {
