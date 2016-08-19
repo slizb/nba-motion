@@ -1,5 +1,8 @@
 
+library(caret)
 library(Boruta)
+library(ranger)
+library(pROC)
 library(ggplot2)
 
 threes <- read.csv('/volumes/nba/threes.csv')
@@ -23,6 +26,14 @@ model_df <- df %>% select(-c(lastnameshooter,
                              team_off,
                              team_def))
 
+trainIndex <- createDataPartition(model_df$EVENTMSGTYPE, 
+                                  p = .6,
+                                  list = FALSE,
+                                  times = 1)
+
+train <- model_df[ trainIndex,]
+test  <- model_df[-trainIndex,]
+
 
 B <- Boruta(as.factor(EVENTMSGTYPE) ~ .,
             data = model_df,
@@ -36,3 +47,21 @@ plot(B, las = 2, xlab = '')
 # boxcox ?
 
 #
+rf <- ranger(as.factor(EVENTMSGTYPE) ~ .,
+             data = train,
+             num.threads = 4,
+             write.forest = T)
+
+preds <- predict(rf, test)
+
+roc_df <- data.frame(actual = as.numeric(test$EVENTMSGTYPE),
+                     prediction = as.numeric(preds$predictions))
+
+my_roc <- roc(actual ~ prediction, roc_df)
+
+
+
+
+
+
+
