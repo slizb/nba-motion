@@ -1,10 +1,59 @@
 
 
+get_matchup_feats <- function(event_df) {
+     
+     plyng_plyrs <- unique(event_df$player_id) %>% 
+          .[which(. != -1)]
+     
+     pdm <- NULL
+     
+     for (p in plyng_plyrs) {
+          
+          col <- data.frame(distance = player_dist(event_df, -1, p),
+                            player = p) %>% 
+               mutate(moment = row_number() )
+          
+          pdm <- bind_rows(pdm, col )
+          
+     }
+     
+     # find players from each team closest to ball ------------------------
+     
+     ball_dist <- pdm  %>% 
+          left_join(bind_rows(o_players, d_players),
+                    by = 'player') %>% 
+          group_by(moment, fense) %>% 
+          summarize(closestPlayer = player[which.min(distance)][1],
+                    closestPlayerDist = min(distance) )
+     
+     # derive mismatches --------------------------------------------------
+     
+     matchup_feats <- ball_dist %>% 
+          left_join(players, by = c('closestPlayer' = 'id.x')) %>% 
+          group_by(moment) %>% 
+          summarize(onBallHeightMismatch = height[which(fense == 'o')] - height[which(fense == 'd')],
+                    onBallWeightMismatch = weight[which(fense == 'o')] - weight[which(fense == 'd')],
+                    onBallexperienceMismatch = years_of_experience[which(fense == 'o')] - years_of_experience[which(fense == 'd')],
+                    # need to get wingspan mismatch in here
+                    onBallpositionMatchup = str_c(position_abbreviation[which(fense == 'o')],
+                                                  '-',
+                                                  position_abbreviation[which(fense == 'd')]),
+                    distToDefender = closestPlayerDist[which(fense == 'd')], 
+                    defenderID = closestPlayer[which(fense == 'd')]) %>%
+          mutate(event.id = event) 
+     
+     return(matchup_feats)
+     
+}
 
-
-pbp_path <- '/volumes/nba/pbp/0021500021_pbp.txt'
-playerStats_path <- '/volumes/nba/players/playerStats.csv'
-
+get_team_feats <- function(event_id, event_df, o_team) {
+     
+     team_feats <- data.frame(event.id = event_id, 
+                              stagnation = stagnation(event_df, o_team) )
+     
+     return(team_feats)
+     
+}
 
 get_dist_features <- function(data, 
                               pbp_path, 
@@ -15,7 +64,7 @@ get_dist_features <- function(data,
      
      pbp <- read.csv(pbp_path)
      
-     ball_matchup <- NULL
+     matchup_feats <- NULL
      team_feats <- NULL
      
      for (event in unique(data$event.id)) {
@@ -74,50 +123,13 @@ get_dist_features <- function(data,
           
           # derive player-ball distances ---------------------------------------
           
-          plyng_plyrs <- unique(event_df$player_id) %>% 
-               .[which(. != -1)]
-          
-          pdm <- NULL
-          
-          for (p in plyng_plyrs) {
-               
-               col <- data.frame(distance = player_dist(event_df, -1, p),
-                                 player = p) %>% 
-                    mutate(moment = row_number() )
-               
-               pdm <- bind_rows(pdm, col )
-               
-          }
-          
-          # find players from each team closest to ball ------------------------
-          
-          ball_dist <- pdm  %>% 
-               left_join(bind_rows(o_players, d_players),
-                         by = 'player') %>% 
-               group_by(moment, fense) %>% 
-               summarize(closestPlayer = player[which.min(distance)][1],
-                         closestPlayerDist = min(distance) )
-          
-          # derive mismatches --------------------------------------------------
-          
-          ball_matchup <- ball_dist %>% 
-               left_join(players, by = c('closestPlayer' = 'id.x')) %>% 
-               group_by(moment) %>% 
-               summarize(onBallHeightMismatch = height[which(fense == 'o')] - height[which(fense == 'd')],
-                         onBallWeightMismatch = weight[which(fense == 'o')] - weight[which(fense == 'd')],
-                         onBallexperienceMismatch = years_of_experience[which(fense == 'o')] - years_of_experience[which(fense == 'd')],
-                         # need to get wingspan mismatch in here
-                         onBallpositionMatchup = str_c(position_abbreviation[which(fense == 'o')],
-                                                       '-',
-                                                       position_abbreviation[which(fense == 'd')]),
-                         distToDefender = closestPlayerDist[which(fense == 'd')], 
-                         defenderID = closestPlayer[which(fense == 'd')]) %>%
-               mutate(event.id = event) %>% 
-               bind_rows(ball_matchup)
-          
-          team_feats <- data.frame(event.id = event, 
-                                   stagnation = stagnation(event_df, o_team)) %>% 
+          team_feats <- tryCatch(get_team_feats(event, event_df, o_team),
+                                 error = function(e) return(NULL) ) %>% 
                bind_rows(team_feats)
+          
+          matchup_feats <- tryCatch(get_matchup_feats(event_df),
+                                    error = function(e) return(NULL) ) %>% 
+               bind_rows(matchup_feats)
           
      }
      

@@ -5,6 +5,8 @@ library(foreach)
 library(doMC)
 registerDoMC(cores = 4)
 
+
+
 # find 3-pointer events for each game --------------------------------
 
 threes <- read.csv('~/Desktop/gameinfo.csv')
@@ -51,7 +53,5 @@ feats <- foreach(game = games, .combine = rbind) %dopar% {
      
 })
 
-# need to join up target (score / not)
-# need to track failed games
 # should switch to fread
 
