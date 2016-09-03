@@ -1,6 +1,6 @@
 
 
-get_matchup_feats <- function(event_df) {
+get_matchup_feats <- function(event_df, o_players, d_players) {
      
      plyng_plyrs <- unique(event_df$player_id) %>% 
           .[which(. != -1)]
@@ -55,36 +55,29 @@ get_team_feats <- function(event_id, event_df, o_team) {
      
 }
 
-get_dist_features <- function(data, 
-                              pbp_path, 
-                              playerStats_path = '/volumes/nba/players/playerStats.csv') {
+parse_teams <- function(pbp, players, event) {
      
-     players <- get_player_stats(pbp_path, 
-                                 playerStats_path)
+     # define offense / defense -------------------------------------------
      
-     pbp <- read.csv(pbp_path)
+     o_team <- pbp %>% 
+          filter(EVENTNUM == event) %>% 
+          .$PLAYER1_TEAM_ID
      
-     matchup_feats <- NULL
-     team_feats <- NULL
+     # if event is not in pbp, skip...
      
-     for (event in unique(data$event.id)) {
+     bad_parse <- ifelse( any(length(o_team) == 0, is.na(o_team) ), T, F)
+     
+     d_team <- unique(pbp$PLAYER1_TEAM_ID) %>% 
+          .[. != o_team & !is.na(.)]
+     
+     # define players on each team ----------------------------------------
+     
+     if (bad_parse) {
           
-          # define offense / defense -------------------------------------------
-          
-          o_team <- pbp %>% 
-               filter(EVENTNUM == event) %>% 
-               .$PLAYER1_TEAM_ID
-          
-          # if event is not in pbp, skip...
-          
-          if (length(o_team) == 0) next
-          if (is.na(o_team)) next
-          
-          d_team <- unique(pbp$PLAYER1_TEAM_ID) %>% 
-               .[. != o_team & !is.na(.)]
-          
-          # define players on each team ----------------------------------------
-          
+          return(list('bad_parse' = bad_parse) )
+     
+     } else {
+      
           o_players <- players %>%
                filter(team == o_team) %>% 
                .$id.x %>% 
@@ -96,6 +89,30 @@ get_dist_features <- function(data,
                .$id.x %>% 
                data.frame(player = .,
                           fense = 'd')
+          
+          return(list('bad_parse' = bad_parse,
+                      'o_team' = o_team,
+                      'd_team' = d_team,
+                      'o_players' = o_players,
+                      'd_players' = d_players) )
+              
+     }
+     
+}
+
+step_one <- function(data, 
+                     pbp,
+                     players,
+                     playerStats_path = '/volumes/nba/players/playerStats.csv') {
+     
+     matchup_feats <- NULL
+     team_feats <- NULL
+     
+     for (event in unique(data$event.id)) {
+          
+          teams <- parse_teams(pbp, players, event)
+          
+          if (teams$bad_parse) next
           
           # find  moment of shot -----------------------------------------------
           
@@ -123,20 +140,38 @@ get_dist_features <- function(data,
           
           # derive player-ball distances ---------------------------------------
           
-          team_feats <- tryCatch(get_team_feats(event, event_df, o_team),
-                                 error = function(e) return(NULL) ) %>% 
-               bind_rows(team_feats)
+          more_team_feats <- tryCatch(get_team_feats(event, event_df, teams$o_team),
+                                 error = function(e) return(NULL) ) 
+          team_feats <- bind_rows(team_feats, more_team_feats)
           
-          matchup_feats <- tryCatch(get_matchup_feats(event_df),
+          more_matchup_feats <- tryCatch(get_matchup_feats(event_df, teams$o_players, teams$d_players),
                                     error = function(e) return(NULL) ) %>% 
-               bind_rows(matchup_feats)
+               mutate(event.id = event)
+          matchup_feats <- bind_rows(matchup_feats, more_matchup_feats)
           
      }
+     
+     return(list('matchup_feats' = matchup_feats, 
+                 'team_feats' = team_feats) )
+     
+}
+
+get_dist_features <- function(data, 
+                              pbp_path, 
+                              playerStats_path = '/volumes/nba/players/playerStats.csv') {
+     
+     players <- get_player_stats(pbp_path, 
+                                 playerStats_path)
+     
+     pbp <- read.csv(pbp_path)
+     
+     processed_data <- step_one(data, pbp, players)
      
      # derive sub-event id --------------------------------------------
      # this represents changes in on-ball defenders over the course of an event
      
-     dist_features <- ball_matchup %>% 
+     # !!! turn this into a function aggregate_matchup_feats()
+     dist_features <- processed_data$matchup_feats %>% 
           mutate(defenderBreak = lag(defenderID) != defenderID,
                  defenderBreak = ifelse(is.na(defenderBreak), 1, defenderBreak),
                  subEventID = cumsum(defenderBreak) ) %>% 
@@ -161,9 +196,10 @@ get_dist_features <- function(data,
                     onBallPositionMatchup = onBallpositionMatchup[which.max(subEventID)])
      
      dist_features <- dist_features %>% 
-          left_join(team_feats, by = 'event.id')
+          left_join(processed_data$team_feats, by = 'event.id')
      
      return(dist_features)
+     #return(list(t = processed_data$team_feats, d = dist_features) )
      
 }
 
