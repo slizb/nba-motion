@@ -202,46 +202,5 @@ player_dist <- function(df, player_id_A, player_id_B) {
 
 
 
-# player_dist_matrix <- function(df, eventID) {
-#      #Function creates a matrix of all player/ball distances with each other
-#      #assumes there a dataframe all.movements with player info
-#      
-#      players <- df %>% 
-#           filter(event.id == eventID) %>% 
-#           select(player_id) %>% 
-#           distinct(player_id)
-#      
-#      players2 <- players
-#      
-#      bigdistance <- unlist(lapply(list(players$player_id)[[1]], function(X) {
-#           lapply(list(players2$player_id)[[1]], function(Y) {
-#                test = player_dist(df, X, Y, eventID)
-#           } )
-#      } ), recursive = F)
-#      
-#      bigdistance_names <- unlist(lapply(list(players$player_id)[[1]], function(X) {
-#           lapply(list(players2$player_id)[[1]], function(Y) {
-#                paste(X, Y,sep = "_")
-#           })
-#      }), recursive = F)
-#      
-#      bigdistancedf <- as.matrix(do.call('cbind',bigdistance))
-#      
-#      colnames(bigdistancedf) <- bigdistance_names
-#      
-#      bigdistancedf <- bigdistancedf[,colSums(bigdistancedf^2) !=0]
-#      
-#      bigdistancedf <- as.data.frame(bigdistancedf)
-#      
-#      clockinfo <- get_game_clock(df, -1, eventID)
-#      
-#      bigdistancedf$game_clock <- clockinfo$game_clock
-#      
-#      return (bigdistancedf)
-#      
-# }
-
-
-
 
 
