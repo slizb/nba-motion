@@ -1,20 +1,8 @@
 
-library(ggplot2)
-library(tidyr)
-library(zoo)
-library(readr)
-library(dplyr)
-library(stringr)
-
-rm(list=ls())
-
-source('functions.R')
 
 # prepare data -------------------------------------------------------
 
-my_game <- "~/Documents/thesis/nba/data/0021500021.csv.gz"
-
-prep_data <- function(game_file) {
+prep_data <- function(game_file, events) {
      
      read_csv(game_file) %>% 
           
@@ -34,11 +22,14 @@ prep_data <- function(game_file) {
           mutate(inPaint = in_paint(x_loc, y_loc) ) %>% 
           
           # take only distinct quarter-game_clock-player combinations
-          distinct(player_id, quarter, game_clock)
+          distinct(player_id, quarter, game_clock) %>% 
+     
+          # filter to events of interest
+          filter(event.id %in% events)
      
 }
 
-data <- prep_data(my_game) 
+#data <- prep_data(my_game) 
 
 # compute some features on the ball ----------------------------------
 
@@ -57,56 +48,5 @@ get_ball_features <- function(data) {
                     timeInPaint = sum(ifelse(inPaint == T, dt, 0)) ) 
      
 } 
-     
-ball <- get_ball_features(data)
-     
-# group data  --------------------------------------------------------
-
-check <- player_dist_matrix(data, 3)
-
-plays <- data %>% 
-     group_by(event.id) %>% 
-     summarize(count = n(),
-               play_court_side = factor(most_frequent(courtside)),
-               #mf_ball_court_side = most_frequent(ballside) ,
-               last_ball_court_side = last_non_na(ballside) ,
-               quarter = as.numeric(most_frequent(quarter))
-               )  %>% 
-     
-     mutate(div11 = count/11,
-            not_div_by_11 = abs(div11-round(div11) ) > 0 ) %>% 
-     left_join(ball, by = 'event.id')  
-     #left_join(threes, by = 'event.id')
-
-# determine & label posession ----------------------------------------
-
-# compute chull by team for each moment of the game
-
-my_chull <- df %>% 
-     group_by(event.id, team_id, quarter, game_clock) %>% 
-     summarize(chull = chull_area(x_loc, y_loc),
-               court_side = most_frequent(courtside) )
-
-# determine offensive side for each quarter
-
-oside_by_team <- NULL
-
-for (q in unique(df$quarter) ) {
-     
-     oside_by_team <- quarter_side(my_chull, q) %>% 
-          mutate(quarter = q) %>% 
-          bind_rows(oside_by_team)
-     
-}
-
-plays <- plays %>% 
-     left_join(oside_by_team,
-               by = c('quarter' = 'quarter',
-                      'play_court_side' = 'side') )
-
-# need to flag / filter mismatched plays (possible fast breaks / other noise)
-
-
-
      
 
