@@ -1,6 +1,6 @@
 
 
-get_matchup_feats <- function(event, event_df, o_players, d_players) {
+get_matchup_feats <- function(event, players, event_df, o_players, d_players) {
      
      plyng_plyrs <- unique(event_df$player_id) %>% 
           .[which(. != -1)]
@@ -150,7 +150,8 @@ step_one <- function(data,
                                       error = function(e) return(NULL) ) 
           team_feats <- bind_rows(team_feats, more_team_feats)
           
-          more_matchup_feats <- tryCatch(get_matchup_feats(event, 
+          more_matchup_feats <- tryCatch(get_matchup_feats(event,
+                                                           players,
                                                            event_df, 
                                                            teams$o_players, 
                                                            teams$d_players),
