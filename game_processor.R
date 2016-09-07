@@ -17,24 +17,24 @@ source('distance_based_features.R')
 
 # find 3-pointer events for each game --------------------------------
 
-threes <- read.csv('~/Desktop/threes.csv')
+threes <- read_csv('/Volumes/nba/three_plays_brad.csv')
 
 games <- unique(threes$gameid)
 
 # loop through each game, grab those events --------------------------
      # parallelize across cores
 system.time(
-feats <- foreach(game = GAMES, .combine = rbind) %dopar% {
+feats <- foreach(game = games, .combine = rbind) %dopar% {
      
      events <- threes %>% 
           filter(gameid == game) %>% 
           .$event.id %>% 
           unique()
      
-     pbp_path <- paste0('/volumes/nba/pbp/00', game, '_pbp.txt')
+     pbp_path <- paste0('/volumes/nba/pbp/', game, '_pbp.txt')
      track_path <- paste0('/Volumes/nba/games/00', game, '.csv.gz')
      
-     df <- prep_data(track_path, events)
+     df <- prep_data_from_frame(threes, game, events)
      
      ball_feats <- tryCatch(get_ball_features(df) %>% 
                                  mutate(gameid = game),
