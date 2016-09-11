@@ -26,15 +26,15 @@ dist_traveled <- function(xloc, yloc) {
 
 }
 
-stagnation <- function(event_data, o_team) {
+stagnation <- function(play_df, o_team) {
      
-     elapsed_time <- event_data$game_clock %>% 
+     elapsed_time <- play_df$game_clock %>% 
           { max(.) - min(.) }
      
      o_team_short <- substr(o_team, 9, 10) %>% 
           as.numeric()
      
-     team_distance <- event_data %>% 
+     team_distance <- play_df %>% 
           filter(team_id == o_team_short) %>% 
           group_by(player_id) %>% 
           summarize(dist_traveled = dist_traveled(x_loc, y_loc)) %>% 
@@ -107,6 +107,13 @@ quarter_side <- function(my_chull, q) {
 }
 
 # most frequent ------------------------------------------------------
+
+mode <- function(x) {
+     
+     ux <- unique(x)
+     ux[which.max(tabulate(match(x, ux)))]
+     
+}
 
 most_frequent <- function(x) {
      

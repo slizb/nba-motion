@@ -1,15 +1,15 @@
 
 
-get_matchup_feats <- function(event, players, event_df, o_players, d_players) {
+get_matchup_feats <- function(play, players, play_df, o_players, d_players) {
      
-     plyng_plyrs <- unique(event_df$player_id) %>% 
+     plyng_plyrs <- unique(play_df$player_id) %>% 
           .[which(. != -1)]
      
      pdm <- NULL
      
      for (p in plyng_plyrs) {
           
-          col <- data.frame(distance = player_dist(event_df, -1, p),
+          col <- data.frame(distance = player_dist(play_df, -1, p),
                             player = p) %>% 
                mutate(moment = row_number() )
           
@@ -31,7 +31,11 @@ get_matchup_feats <- function(event, players, event_df, o_players, d_players) {
      matchup_feats <- ball_dist %>% 
           left_join(players, by = c('closestPlayer' = 'id.x')) %>% 
           group_by(moment) %>% 
-          summarize(onBallHeightMismatch = height[which(fense == 'o')] - height[which(fense == 'd')],
+          summarize(offenseHeight = height[which(fense == 'o')],
+                    defenseHeight = height[which(fense == 'd')],
+                    offenseWeight = weight[which(fense == 'o')],
+                    defenseWeight = weight[which(fense == 'd')],
+                    onBallHeightMismatch = height[which(fense == 'o')] - height[which(fense == 'd')],
                     onBallWeightMismatch = weight[which(fense == 'o')] - weight[which(fense == 'd')],
                     onBallexperienceMismatch = years_of_experience[which(fense == 'o')] - years_of_experience[which(fense == 'd')],
                     # need to get wingspan mismatch in here
@@ -40,30 +44,33 @@ get_matchup_feats <- function(event, players, event_df, o_players, d_players) {
                                                   position_abbreviation[which(fense == 'd')]),
                     distToDefender = closestPlayerDist[which(fense == 'd')], 
                     defenderID = closestPlayer[which(fense == 'd')]) %>%
-          mutate(event.id = event) 
+          mutate(playid = play) 
      
      return(matchup_feats)
      
 }
 
-get_team_feats <- function(event_id, event_df, o_team) {
+get_team_feats <- function(playid, play_df, o_team) {
      
-     team_feats <- data.frame(event.id = event_id, 
-                              stagnation = stagnation(event_df, o_team) )
+     team_feats <- data.frame(playid = playid, 
+                              stagnation = stagnation(play_df, o_team) )
      
      return(team_feats)
      
 }
 
-parse_teams <- function(pbp, players, event) {
+###!!! fix parse_teams to reference play instead of event... 
+### need to build helper function to grab o_team based on player1id in play_df
+parse_teams <- function(pbp, players, player1ID) {
      
      # define offense / defense -------------------------------------------
      
      o_team <- pbp %>% 
-          filter(EVENTNUM == event) %>% 
-          .$PLAYER1_TEAM_ID
+          filter(PLAYER1_ID == player1ID) %>% 
+          .$PLAYER1_TEAM_ID %>% 
+          mode()
      
-     # if event is not in pbp, skip...
+     # if something goes wrogn, skip...
      
      bad_parse <- ifelse( any(length(o_team) == 0, is.na(o_team) ), T, F)
      
@@ -100,9 +107,9 @@ parse_teams <- function(pbp, players, event) {
      
 }
 
-clip_event_to_shot <- function(event_df) {
+clip_play_to_shot <- function(play_df) {
      
-     ball <- event_df %>% 
+     ball <- play_df %>% 
           filter(player_id == -1)
      
      shot <- ball %>% .$radius > 11 
@@ -113,14 +120,14 @@ clip_event_to_shot <- function(event_df) {
           .$game_clock %>% 
           .[shot_moment]
      
-     # clip event to moment of shot ---------------------------------------
+     # clip play to moment of shot ---------------------------------------
      
      if (!is.na(shot_moment)){
           
-          event_df %>% 
+          play_df %>% 
                filter(game_clock < clock_at_shot)
           
-     } else event_df
+     } else play_df
      
 }
 
@@ -132,27 +139,31 @@ step_one <- function(data,
      matchup_feats <- NULL
      team_feats <- NULL
      
-     for (event in unique(data$event.id)) {
+     for (play in unique(data$playid)) {
           
-          teams <- parse_teams(pbp, players, event)
+          # filter to play ----------------------------------------------------
+          
+          play_df <- data %>% filter(playid == play)
+          
+          play_df <- clip_play_to_shot(play_df)
+          
+          # parse teams --------------------------------------------------------
+          
+          PLAYER1_ID <-  mode(play_df$PLAYER1_ID)
+          
+          teams <- parse_teams(pbp, players, PLAYER1_ID ) 
           
           if (teams$bad_parse) next
           
-          # filter to event ----------------------------------------------------
-          
-          event_df <- data %>% filter(event.id == event)
-          
-          event_df <- clip_event_to_shot(event_df)
-          
           # derive player-ball distances ---------------------------------------
           
-          more_team_feats <- tryCatch(get_team_feats(event, event_df, teams$o_team),
+          more_team_feats <- tryCatch(get_team_feats(play, play_df, teams$o_team),
                                       error = function(e) return(NULL) ) 
           team_feats <- bind_rows(team_feats, more_team_feats)
           
-          more_matchup_feats <- tryCatch(get_matchup_feats(event,
+          more_matchup_feats <- tryCatch(get_matchup_feats(play,
                                                            players,
-                                                           event_df, 
+                                                           play_df, 
                                                            teams$o_players, 
                                                            teams$d_players),
                                          error = function(e) return(NULL) )
@@ -169,32 +180,40 @@ step_one <- function(data,
 aggregate_matchup_feats <- function(fine_matchup_feats) {
      
      # derive sub-event id 
-     # this represents changes in on-ball defenders over the course of an event
+     # this represents changes in on-ball defenders over the course of a play
      
      fine_matchup_feats %>% 
           mutate(previousDefender = lag(defenderID),
                  defenderBreak = previousDefender != defenderID,
                  defenderBreak = ifelse(is.na(defenderBreak), 1, defenderBreak),
-                 subEventID = cumsum(defenderBreak) ) %>% 
-          group_by(event.id, subEventID) %>% 
+                 subPlayID = cumsum(defenderBreak) ) %>% 
+          group_by(playid, subPlayID) %>% 
           summarize(medDist = median(distToDefender),
                     maxDist = max(distToDefender),
-                    distAtShot = distToDefender[which(row_number()==n()) ],
+                    distAtShot = distToDefender[which(row_number()==n())],
+                    offenseHeight = offenseHeight[which(row_number()==n())],
+                    defenseHeight = defenseHeight[which(row_number()==n())],
+                    offenseWeight = offenseWeight[which(row_number()==n())],
+                    defenseWeight = defenseWeight[which(row_number()==n())],
                     onBallHeightMismatch = onBallHeightMismatch[which(row_number()==n())],
                     onBallWeightMismatch = onBallWeightMismatch[which(row_number()==n())],
                     onBallexperienceMismatch = onBallexperienceMismatch[which(row_number()==n())],
                     onBallpositionMatchup = onBallpositionMatchup[which(row_number()==n())]) %>% 
           
-          # compute features for the final on ball defender of the event
+          # compute features for the final on ball defender of the play
           
-          group_by(event.id) %>% 
-          summarize(medDefenderDist = medDist[which.max(subEventID)],
-                    maxDefenderDist = maxDist[which.max(subEventID)],
-                    DefenderDistAtShot = distAtShot[which.max(subEventID)],
-                    onBallHeightMismatch = onBallHeightMismatch[which.max(subEventID)],
-                    onBallWeightMismatch = onBallWeightMismatch[which.max(subEventID)],
-                    onBallExperienceMismatch = onBallexperienceMismatch[which.max(subEventID)],
-                    onBallPositionMatchup = onBallpositionMatchup[which.max(subEventID)])
+          group_by(playid) %>% 
+          summarize(medDefenderDist = medDist[which.max(subPlayID)],
+                    maxDefenderDist = maxDist[which.max(subPlayID)],
+                    offenseHeight = offenseHeight[which.max(subPlayID)],
+                    defenseHeight = defenseHeight[which.max(subPlayID)],
+                    offenseWeight = offenseWeight[which.max(subPlayID)],
+                    defenseWeight = defenseWeight[which.max(subPlayID)],
+                    defenderDistAtShot = distAtShot[which.max(subPlayID)],
+                    onBallHeightMismatch = onBallHeightMismatch[which.max(subPlayID)],
+                    onBallWeightMismatch = onBallWeightMismatch[which.max(subPlayID)],
+                    onBallExperienceMismatch = onBallexperienceMismatch[which.max(subPlayID)],
+                    onBallPositionMatchup = onBallpositionMatchup[which.max(subPlayID)])
      
 }
 
@@ -212,7 +231,7 @@ get_dist_features <- function(data,
      dist_features <- aggregate_matchup_feats(processed_data$matchup_feats)
      
      dist_features <- dist_features %>% 
-          left_join(processed_data$team_feats, by = 'event.id')
+          left_join(processed_data$team_feats, by = 'playid')
      
      return(dist_features)
      

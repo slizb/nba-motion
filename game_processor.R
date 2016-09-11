@@ -17,7 +17,9 @@ source('distance_based_features.R')
 
 # find 3-pointer events for each game --------------------------------
 
-threes <- read_csv('/Volumes/nba/three_plays_brad.csv')
+threes <- read_csv('/Volumes/nba/three_plays_brad2.csv')
+
+threes$gameid <- as.numeric(threes$gameid)
 
 games <- unique(threes$gameid)
 
@@ -26,15 +28,10 @@ games <- unique(threes$gameid)
 system.time(
 feats <- foreach(game = games, .combine = rbind) %dopar% {
      
-     events <- threes %>% 
-          filter(gameid == game) %>% 
-          .$event.id %>% 
-          unique()
-     
-     pbp_path <- paste0('/volumes/nba/pbp/', game, '_pbp.txt')
+     pbp_path <- paste0('/volumes/nba/pbp/00', game, '_pbp.txt')
      track_path <- paste0('/Volumes/nba/games/00', game, '.csv.gz')
      
-     df <- prep_data_from_frame(threes, game, events)
+     df <- prep_data_from_frame(threes, game)
      
      ball_feats <- tryCatch(get_ball_features(df) %>% 
                                  mutate(gameid = game),
@@ -51,7 +48,7 @@ feats <- foreach(game = games, .combine = rbind) %dopar% {
           ball_feats %>% 
                left_join(dist_feats,
                          by = c('gameid' = 'gameid',
-                                'event.id' = 'event.id'))
+                                'playid' = 'playid'))
           
      }
      
@@ -59,5 +56,11 @@ feats <- foreach(game = games, .combine = rbind) %dopar% {
      
 })
 
-# should switch to fread -weird encoding issue
+target <- threes %>% 
+     select(gameid, playid, EVENTMSGTYPE) %>% 
+     distinct(gameid, playid, EVENTMSGTYPE)
+
+feats <- feats %>% 
+     left_join(target, by = c('gameid' = 'gameid', 
+                              'playid' = 'playid' ))
 

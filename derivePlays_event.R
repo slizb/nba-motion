@@ -1,7 +1,7 @@
 
 
 # prepare data -------------------------------------------------------
-
+# need to switch events to plays -playid
 prep_data_from_file <- function(game_file, events) {
      
      read_csv(game_file) %>% 
@@ -29,7 +29,7 @@ prep_data_from_file <- function(game_file, events) {
      
 }
 
-prep_data_from_frame <- function(frame, game, events) {
+prep_data_from_frame <- function(frame, game) {
      
      frame %>% 
           
@@ -50,10 +50,7 @@ prep_data_from_frame <- function(frame, game, events) {
           mutate(inPaint = in_paint(x_loc, y_loc) ) %>% 
           
           # take only distinct quarter-game_clock-player combinations
-          distinct(player_id, quarter, game_clock) %>% 
-          
-          # filter to events of interest
-          filter(event.id %in% events)
+          distinct(player_id, quarter, game_clock)
      
 }
 
@@ -64,7 +61,7 @@ get_ball_features <- function(data) {
      data %>% 
      filter(player_id == -1) %>% 
           mutate(dt = lag(game_clock) - game_clock) %>% 
-          group_by(event.id) %>% 
+          group_by(playid) %>% 
           summarize(distanceTraveled = dist_traveled(x_loc, y_loc), 
                     xDistanceTraveled = ax_dist(x_loc),
                     yDistanceTraveled = ax_dist(y_loc),
