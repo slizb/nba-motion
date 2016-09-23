@@ -3,29 +3,34 @@
 
 library (dplyr)
 library (ggplot2)
-load("~/Code/nba-motion/preppedData.RData")
+load("data/preppedData.RData")
+train <- uptrain
 train$target <- as.factor(train$target)
 test$target <- as.factor(test$target)
 table(train$target)
 table(test$target)
-train <- train %>% filter (elapsedTime > 5)  %>% filter(numberPasses >= 1) 
-test <- test %>% filter (elapsedTime > 5) %>% filter(numberPasses >= 1) 
+train <- train %>% filter (elapsedTime > 5)  %>% filter(numberPasses >= 0) %>% filter (elapsedTime < 36) 
+test <- test %>% filter (elapsedTime > 5) %>% filter(numberPasses >= 0) %>% filter (elapsedTime < 36) 
 train$gameid <- NULL
 test$gameid <- NULL
-train_fe <- train[,2:8]/train[,7]
-test_fe <- test[,2:8]/test[,7]
-train_fe[,7:20] <- train[,9:22]
-test_fe[,7:20]  <- test[,9:22]
+train_fe <- train[,2:4]/train[,7]
+test_fe <- test[,2:4]/test[,7]
+train_fe[,4:24] <- train[,5:25]
+test_fe[,4:24]  <- test[,5:25]
 
 train2 <- train_fe
 test2 <- test_fe
+train2$onBallPositionMatchup <- NULL
+test2$onBallPositionMatchup <- NULL
+train2$elapsedTime <- train$elapsedTime
+test2$elapsedTime <- test$elapsedTime
 train2$onBallPositionMatchup <- train$onBallPositionMatchup
 test2$onBallPositionMatchup <- test$onBallPositionMatchup
 train2$target <- train$target
 test2$target <- test$target
 
 library(corrplot)
-M <- cor(train2[,1:10])
+M <- cor(train2[,1:20])
 corrplot(M, method="circle")
 
 mydata <- train
@@ -62,7 +67,7 @@ table(makes$onBallPositionMatchup)
 ##XGBOOST
 library(xgboost)
 response <- (as.numeric(train$target)-1)
-train.data <- data.matrix(train[,-(24:25)])
+train.data <- data.matrix(train2[,-(21:22)])
 
 param <- list("objective" = "binary:logistic",
             #  max_depth = 8,
@@ -71,8 +76,8 @@ cv.nround <- 50
 cv.nfold <- 5
 bst <-xgb.cv(data=train.data,eta=0.05,  label=response,params = param,nthread=4,nfold = cv.nfold,nrounds = cv.nround,verbose = T)
 
-# bst <- xgboost(data = train.data, label = response, max.depth = 4,
-#                eta = .05, nthread = 4, nround = 50, objective = "binary:logistic")
+ bst <- xgboost(data = train.data, label = response, max.depth = 4,
+                eta = .05, nthread = 4, nround = 50, objective = "binary:logistic")
 
 model <- xgb.dump(bst, with_stats = T)
 names <- dimnames(data.matrix(train))[[2]]
@@ -98,23 +103,26 @@ library(h2o)
 h2o.init()
 train.h2o <- as.h2o(train2)
 test.h2o <- as.h2o(test2)
-x = 1:19
-y= 20
+x = c(1:9,14,20:23)
+x = 1:24
+y= 25
 
 
 bb.glm <- h2o.glm(x=x,y=y,
                   training_frame = train.h2o,
-                  validation_frame = test.h2o,
+                  validation_frame = test.h2o,standardize = TRUE,
+                  
                   family = "binomial")
 
 h2o.performance(bb.glm, valid = TRUE)
 
 bb.gbm <- h2o.gbm(x=x,y=y,
                   training_frame = train.h2o,
-                  validation_frame = test.h2o,
+                  validation_frame = test.h2o,balance_classes = TRUE,
                   distribution = "bernoulli")
 
 h2o.performance(bb.gbm, valid = TRUE)
+h2o.performance(bb.gbm)
 h2o.varimp(bb.gbm)
 
 bb.rf <- h2o.randomForest(x=x,y=y,ntrees = 200,
