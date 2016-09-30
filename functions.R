@@ -16,6 +16,25 @@ chull_area <- function(X,Y) {
      
 }
 
+get_chull <- function(play_df, teamid) {
+     
+     end_of_play <- min(play_df$game_clock)
+     end_minus_2 <- play_df$game_clock[which.min(abs(end_of_play + 2 - play_df$game_clock) )]
+     
+     clipped_teamid <- teamid %>% 
+          as.character() %>% 
+          str_sub(-2) %>% 
+          as.integer()
+     
+     chull_moment <- play_df %>% 
+          filter(game_clock == end_minus_2,
+                 team_id == clipped_teamid) %>% 
+          .[1:5,]
+     
+     chull_area(chull_moment$x_loc, chull_moment$y_loc)
+     
+}
+
 # ball distance ------------------------------------------------------
 
 dist_traveled <- function(xloc, yloc) {
@@ -188,14 +207,6 @@ get_player_stats <- function(pbp_file, player_file) {
 
 
 # distance matrix ----------------------------------------------------
-
-get_game_clock <- function(df, player_id, eventID){
-     #Function gets the glame clock, assumes there is a dataframe all.movements with player info
-     alldf <- df[which((df$player_id == player_id) & df$event.id == eventID),]
-     game_clock <- alldf$game_clock
-     return(as.data.frame(game_clock))
-}
-
 
 player_dist <- function(df, player_id_A, player_id_B) {
      #Functions finds the distance of the player, assumes you have a dataframe all.movements with player info
