@@ -16,8 +16,8 @@ gbmGrid <-  expand.grid(interaction.depth = c(1, 5, 9),
                         shrinkage = 0.1,
                         n.minobsinnode = 20)
 
-gbmFit1 <- train(as.factor(target) ~ ., 
-                 data = train,
+gbmFit1 <- train(Class ~ ., 
+                 data = up_train,
                  method = "gbm",
                  trControl = fitControl,
                  metric = "ROC",
@@ -25,11 +25,11 @@ gbmFit1 <- train(as.factor(target) ~ .,
                  verbose = FALSE,
                  tuneLength = 10)
 
-ggplot(gbmFit1, metric = "Kappa")
-
-ggplot(gbmFit1) +
-     geom_smooth(se = FALSE, span = .8, method = loess) +
-     theme(legend.position = "top")
+# ggplot(gbmFit1, metric = "Kappa")
+# 
+# ggplot(gbmFit1) +
+#      geom_smooth(se = FALSE, span = .8, method = loess) +
+#      theme(legend.position = "top")
 
 preds <- predict(gbmFit1, test, type = "prob")
 
