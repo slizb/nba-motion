@@ -25,7 +25,17 @@ get_matchup_feats <- function(play, players, play_df, o_players, d_players) {
           group_by(moment, fense) %>% 
           summarize(closestPlayer = player[which.min(distance)][1],
                     closestPlayerDist = min(distance) )
-     
+
+     # count passes -------------------------------------------------------
+
+     passes <- ball_dist %>% 
+          data.frame() %>% 
+          filter(fense == 'o') %>% 
+          mutate(previousPlayer = lag(closestPlayer),
+                 pass = closestPlayer != previousPlayer,
+                 pass = ifelse(is.na(pass), F, pass)) %>% 
+          select(moment, pass)
+          
      # derive mismatches --------------------------------------------------
      
      matchup_feats <- ball_dist %>% 
@@ -44,23 +54,26 @@ get_matchup_feats <- function(play, players, play_df, o_players, d_players) {
                                                   position_abbreviation[which(fense == 'd')]),
                     distToDefender = closestPlayerDist[which(fense == 'd')], 
                     defenderID = closestPlayer[which(fense == 'd')]) %>%
-          mutate(playid = play) 
+          mutate(playid = play) %>% 
+          left_join(passes, by = 'moment')
      
      return(matchup_feats)
      
 }
 
-get_team_feats <- function(playid, play_df, o_team) {
+
+get_team_feats <- function(playid, play_df, o_team, d_team) {
      
      team_feats <- data.frame(playid = playid, 
-                              stagnation = stagnation(play_df, o_team) )
+                              teamMovement = stagnation(play_df, o_team), 
+                              offenseChull = get_chull(play_df, o_team),
+                              defenseChull = get_chull(play_df, d_team),
+                              chullDiff = get_chull(play_df, o_team) - get_chull(play_df, d_team) )
      
      return(team_feats)
      
 }
 
-###!!! fix parse_teams to reference play instead of event... 
-### need to build helper function to grab o_team based on player1id in play_df
 parse_teams <- function(pbp, players, player1ID) {
      
      # define offense / defense -------------------------------------------
@@ -157,7 +170,7 @@ step_one <- function(data,
           
           # derive player-ball distances ---------------------------------------
           
-          more_team_feats <- tryCatch(get_team_feats(play, play_df, teams$o_team),
+          more_team_feats <- tryCatch(get_team_feats(play, play_df, teams$o_team, teams$d_team),
                                       error = function(e) return(NULL) ) 
           team_feats <- bind_rows(team_feats, more_team_feats)
           
@@ -198,7 +211,8 @@ aggregate_matchup_feats <- function(fine_matchup_feats) {
                     onBallHeightMismatch = onBallHeightMismatch[which(row_number()==n())],
                     onBallWeightMismatch = onBallWeightMismatch[which(row_number()==n())],
                     onBallexperienceMismatch = onBallexperienceMismatch[which(row_number()==n())],
-                    onBallpositionMatchup = onBallpositionMatchup[which(row_number()==n())]) %>% 
+                    onBallpositionMatchup = onBallpositionMatchup[which(row_number()==n())],
+                    numberPasses = sum(pass)) %>% 
           
           # compute features for the final on ball defender of the play
           
@@ -213,7 +227,9 @@ aggregate_matchup_feats <- function(fine_matchup_feats) {
                     onBallHeightMismatch = onBallHeightMismatch[which.max(subPlayID)],
                     onBallWeightMismatch = onBallWeightMismatch[which.max(subPlayID)],
                     onBallExperienceMismatch = onBallexperienceMismatch[which.max(subPlayID)],
-                    onBallPositionMatchup = onBallpositionMatchup[which.max(subPlayID)])
+                    onBallPositionMatchup = onBallpositionMatchup[which.max(subPlayID)], 
+                    numberPasses = sum(numberPasses),
+                    numberBallDefenders = n() )
      
 }
 
