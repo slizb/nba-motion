@@ -16,12 +16,9 @@ source('functions.R')
 source('derivePlays_event.R')
 source('distance_based_features.R')
 
-CSVS <- c('/Volumes/nba/three_plays/three_plays_brad_001-200.csv',
-          '/Volumes/nba/three_plays/three_plays_brad_201_300.csv',
-          '/Volumes/nba/three_plays/three_plays_brad_301_400.csv',
-          '/Volumes/nba/three_plays/three_plays_brad_401_631.csv')
+CSVS <- c('/Users/home/Downloads/threepointers_0021500002 (1).csv')
 
-#threes <- read_csv(CSVS[1])
+threes <- read_csv(CSVS[1])
 
 bound_feats <- NULL
 
@@ -38,10 +35,13 @@ for (csv in CSVS) {
      # loop through each game, grab those events --------------------------
      # parallelize across cores
 
+          
           feats <- foreach(game = games, .combine = rbind) %dopar% {
                
+               game <- games
+               
                pbp_path <- paste0('/volumes/nba/pbp/00', game, '_pbp.txt')
-               track_path <- paste0('/Volumes/nba/games/00', game, '.csv.gz')
+               #track_path <- paste0('/Volumes/nba/games/00', game, '.csv.gz')
                
                df <- prep_data_from_frame(threes, game)
                
@@ -83,6 +83,5 @@ for (csv in CSVS) {
      
 } )
 
-write.csv(bound_feats, 'event_features_9-20-16.csv')
 
 

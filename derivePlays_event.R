@@ -50,7 +50,7 @@ prep_data_from_frame <- function(frame, game) {
           mutate(inPaint = in_paint(x_loc, y_loc) ) %>% 
           
           # take only distinct quarter-game_clock-player combinations
-          distinct(player_id, quarter, game_clock)
+          distinct(player_id, quarter, game_clock, .keep_all = T)
      
 }
 
@@ -60,9 +60,9 @@ get_ball_features <- function(data) {
      
      data %>% 
      filter(player_id == -1) %>% 
+          group_by(playid) %>% 
           mutate(dt = lag(game_clock) - game_clock,
                  timeInPaint = ifelse(inPaint == T, dt, 0) ) %>% 
-          group_by(playid) %>% 
           summarize(distanceTraveled = dist_traveled(x_loc, y_loc), 
                     xDistanceTraveled = ax_dist(x_loc),
                     yDistanceTraveled = ax_dist(y_loc),
