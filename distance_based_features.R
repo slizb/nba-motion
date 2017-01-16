@@ -147,7 +147,7 @@ clip_play_to_shot <- function(play_df) {
 step_one <- function(data, 
                      pbp,
                      players,
-                     playerStats_path = '/volumes/nba/players/playerStats.csv') {
+                     playerStats_path = 'data/nbastats/playerStats.csv') {
      
      matchup_feats <- NULL
      team_feats <- NULL
@@ -235,7 +235,7 @@ aggregate_matchup_feats <- function(fine_matchup_feats) {
 
 get_dist_features <- function(data, 
                               pbp_path, 
-                              playerStats_path = '/volumes/nba/players/playerStats.csv') {
+                              playerStats_path = 'data/nbastats/playerStats.csv') {
      
      players <- get_player_stats(pbp_path, 
                                  playerStats_path)
