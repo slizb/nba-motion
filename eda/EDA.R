@@ -69,3 +69,9 @@ get_3pt_rate <- function(df, dependent, dx, degs) {
      plot(final$x, final$threePct)
      
 }
+
+
+
+
+
+
